@@ -1,0 +1,1359 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Stock Opname M131</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        brand: {
+                            50: '#f0fdf4',
+                            500: '#22c55e',
+                            600: '#16a34a',
+                            700: '#15803d',
+                            900: '#14532d'
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <!-- SheetJS CDN (XLSX Parsing) -->
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <!-- Lucide Icons CDN -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        /* Custom scrollbar styling */
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #94a3b8; border-radius: 4px; }
+        .dark ::-webkit-scrollbar-thumb { background: #475569; }
+    </style>
+</head>
+<body class="bg-slate-100 dark:bg-slate-900 text-slate-800 dark:text-slate-100 min-h-screen transition-colors duration-200">
+
+    <!-- App Wrapper -->
+    <div class="flex h-screen overflow-hidden relative">
+
+        <!-- TOGGLE BUTTON SIDEBAR -->
+        <button id="sidebarToggle" onclick="toggleSidebar()" class="fixed top-4 left-64 z-50 p-2 bg-slate-800 dark:bg-slate-700 text-white rounded-r-lg shadow-lg hover:bg-slate-700 transition-all duration-300 focus:outline-none">
+            <i id="toggleIcon" data-lucide="chevron-left" class="w-5 h-5"></i>
+        </button>
+
+        <!-- SIDEBAR -->
+        <aside id="sidebar" class="w-64 bg-slate-900 text-slate-300 flex flex-col h-full z-40 transition-all duration-300 shrink-0 overflow-hidden">
+            <div class="p-4 border-b border-slate-800 flex items-center gap-3">
+                <div class="p-2 bg-brand-600 rounded-lg text-white">
+                    <i data-lucide="boxes" class="w-6 h-6"></i>
+                </div>
+                <div>
+                    <h1 class="font-bold text-lg text-white leading-tight">Stock Opname</h1>
+                </div>
+            </div>
+
+            <!-- NAVIGATION MENU -->
+            <nav class="flex-1 p-3 space-y-1 overflow-y-auto">
+                <button onclick="switchTab('scanner')" id="btn-scanner" class="nav-btn w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors bg-brand-600 text-white">
+                    <i data-lucide="qr-code" class="w-4 h-4"></i>
+                    <span>Live Audit & Scanner</span>
+                </button>
+                <button onclick="switchTab('spr')" id="btn-spr" class="nav-btn w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors hover:bg-slate-800 hover:text-white">
+                    <i data-lucide="file-spreadsheet" class="w-4 h-4"></i>
+                    <span>Stock Position Report</span>
+                </button>
+                <button onclick="switchTab('inventory')" id="btn-inventory" class="nav-btn w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors hover:bg-slate-800 hover:text-white">
+                    <i data-lucide="list-checks" class="w-4 h-4"></i>
+                    <span>Master Inventory Catalog</span>
+                </button>
+                <button onclick="switchTab('diff-items')" id="btn-diff-items" class="nav-btn w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors hover:bg-slate-800 hover:text-white">
+                    <i data-lucide="alert-triangle" class="w-4 h-4 text-purple-400"></i>
+                    <span>Discrepancy Items</span>
+                </button>
+                <!-- TAB SELISIH PLUS -->
+                <button onclick="switchTab('surplus')" id="btn-surplus" class="nav-btn w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors hover:bg-slate-800 hover:text-white">
+                    <i data-lucide="trending-up" class="w-4 h-4 text-amber-400"></i>
+                    <span>Surplus Stock (+)</span>
+                </button>
+                <button onclick="switchTab('export')" id="btn-export" class="nav-btn w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors hover:bg-slate-800 hover:text-white">
+                    <i data-lucide="download" class="w-4 h-4 text-emerald-400"></i>
+                    <span>Export Reports</span>
+                </button>
+            </nav>
+
+            <!-- FOOTER INFO -->
+            <div class="p-3 border-t border-slate-800 text-xs text-slate-500 text-center">
+                Febiristian &copy; 2026
+            </div>
+        </aside>
+
+        <!-- MAIN CONTENT AREA -->
+        <main class="flex-1 flex flex-col h-full overflow-hidden">
+
+            <!-- TOP NAVBAR -->
+            <header class="h-16 bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 px-6 flex items-center justify-between z-10 shrink-0">
+                <div class="flex items-center gap-4">
+                    <h2 id="pageTitle" class="text-xl font-bold text-slate-800 dark:text-white">Scanner & Live Input</h2>
+                </div>
+
+                <div class="flex items-center gap-3">
+                    <!-- REALTIME SYNC STATUS & MODAL BUTTON -->
+                    <button onclick="openSyncModal()" class="px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 text-xs font-semibold flex items-center gap-2 transition-colors">
+                        <span id="syncStatusBadge" class="w-2.5 h-2.5 rounded-full bg-slate-400"></span>
+                        <span id="syncStatusText">Offline / Standalone</span>
+                        <i data-lucide="wifi" class="w-3.5 h-3.5 text-slate-400"></i>
+                    </button>
+
+                    <!-- THEME TOGGLE BUTTON -->
+                    <button onclick="toggleTheme()" class="p-2 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors">
+                        <i id="themeIcon" data-lucide="moon" class="w-5 h-5"></i>
+                    </button>
+                </div>
+            </header>
+
+            <!-- CONTENT BODY -->
+            <div class="flex-1 overflow-y-auto p-6 space-y-6">
+
+                <!-- TAB CONTENT: SCANNER & LIVE INPUT -->
+                <div id="tab-scanner" class="tab-content space-y-6">
+                    
+                    <!-- SUMMARY KPI CARDS -->
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4">
+                        <div class="bg-white dark:bg-slate-800 p-4 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm">
+                            <span class="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Master Target Qty</span>
+                            <div id="kpiTotalMaster" class="text-2xl font-bold text-slate-800 dark:text-white mt-1">0 pcs</div>
+                            <span class="text-[10px] text-slate-400 font-medium">System Stock Baseline</span>
+                        </div>
+                        <div class="bg-white dark:bg-slate-800 p-4 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm">
+                            <span class="text-xs font-semibold text-brand-600 dark:text-brand-400 uppercase tracking-wider">Total Scanned Qty</span>
+                            <div id="kpiTotalScanned" class="text-2xl font-bold text-brand-600 dark:text-brand-400 mt-1">0 pcs</div>
+                            <span class="text-[10px] text-slate-400 font-medium">Physical Audit Result</span>
+                        </div>
+                        <div onclick="switchTab('diff-items')" class="bg-white dark:bg-slate-800 p-4 rounded-xl border border-purple-200 dark:border-purple-900/50 shadow-sm cursor-pointer hover:border-purple-500 transition-colors">
+                            <span class="text-xs font-semibold text-purple-600 dark:text-purple-400 uppercase tracking-wider">Unmatched Barcodes</span>
+                            <div id="kpiDiffItems" class="text-2xl font-bold text-purple-600 dark:text-purple-400 mt-1">0 pcs</div>
+                            <span class="text-[10px] text-purple-500/80 font-medium">Unregistered Items</span>
+                        </div>
+                        <div class="bg-white dark:bg-slate-800 p-4 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm">
+                            <span class="text-xs font-semibold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider">Exact Matched Stock</span>
+                            <div id="kpiMatch" class="text-2xl font-bold text-emerald-600 dark:text-emerald-400 mt-1">0 pcs</div>
+                            <span class="text-[10px] text-emerald-500/80 font-medium">100% Stock Accordance</span>
+                        </div>
+                        <div class="bg-white dark:bg-slate-800 p-4 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm">
+                            <span class="text-xs font-semibold text-rose-600 dark:text-rose-400 uppercase tracking-wider">Shortage Deficit (-)</span>
+                            <div id="kpiShortage" class="text-2xl font-bold text-rose-600 dark:text-rose-400 mt-1">0 pcs</div>
+                            <span class="text-[10px] text-rose-500/80 font-medium">Missing Stock Audit</span>
+                        </div>
+                        <div onclick="switchTab('surplus')" class="bg-white dark:bg-slate-800 p-4 rounded-xl border border-amber-200 dark:border-amber-900/50 shadow-sm cursor-pointer hover:border-amber-500 transition-colors">
+                            <span class="text-xs font-semibold text-amber-600 dark:text-amber-400 uppercase tracking-wider">Surplus Excess (+)</span>
+                            <div id="kpiSurplus" class="text-2xl font-bold text-amber-600 dark:text-amber-400 mt-1">0 pcs</div>
+                            <span class="text-[10px] text-amber-500/80 font-medium">Overstock Physical Count</span>
+                        </div>
+                    </div>
+
+                    <!-- INPUT SECTION GRID -->
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                        <!-- SINGLE BARCODE SCANNER PANEL -->
+                        <div class="bg-white dark:bg-slate-800 p-6 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm flex flex-col justify-between space-y-4">
+                            <div>
+                                <h3 class="text-lg font-bold text-slate-800 dark:text-white flex items-center gap-2 mb-1">
+                                    <i data-lucide="qr-code" class="w-5 h-5 text-brand-600"></i>
+                                    <span>Single Barcode Scan & Search</span>
+                                </h3>
+                                <p class="text-xs text-slate-500 dark:text-slate-400 mb-4">Scan barcode atau ketik Brand / Nama Barang / Kode Artikel untuk rekomendasi stok.</p>
+                                
+                                <div class="relative">
+                                    <div class="flex items-center gap-3">
+                                        <input type="text" id="barcodeInput" oninput="handleBarcodeSearchInput(this.value)" onkeydown="handleBarcodeKeyDown(event)" placeholder="Scan barcode / ketik Brand, Nama Barang..." autofocus autocomplete="off" class="flex-1 px-4 py-2.5 text-base rounded-lg border-2 border-brand-500 focus:outline-none dark:bg-slate-900 dark:text-white">
+                                        <button onclick="handleScanSubmit()" class="px-5 py-2.5 bg-brand-600 hover:bg-brand-700 text-white font-bold rounded-lg transition-colors flex items-center gap-2 shrink-0">
+                                            <i data-lucide="scan" class="w-4 h-4"></i>
+                                            <span>SCAN</span>
+                                        </button>
+                                    </div>
+                                    <div id="scanSuggestions" class="hidden absolute z-30 left-0 right-0 top-full mt-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg shadow-xl max-h-60 overflow-y-auto divide-y divide-slate-100 dark:divide-slate-800">
+                                    </div>
+                                </div>
+                            </div>
+                            <div id="scanFeedback" class="hidden p-3 rounded-lg text-sm font-semibold mt-2"></div>
+                        </div>
+
+                        <!-- BATCH EXCEL ARTICLE PANEL -->
+                        <div class="bg-white dark:bg-slate-800 p-6 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm flex flex-col justify-between space-y-4">
+                            <div>
+                                <div class="flex items-center gap-3 mb-1">
+                                    <div class="p-2 bg-brand-100 dark:bg-brand-900/40 text-brand-600 dark:text-brand-400 rounded-lg">
+                                        <i data-lucide="file-spreadsheets" class="w-5 h-5"></i>
+                                    </div>
+                                    <div>
+                                        <h3 class="text-lg font-bold text-slate-800 dark:text-white">Batch Excel Article</h3>
+                                        <p class="text-xs text-slate-500 dark:text-slate-400">Input masal file Excel daftar artikel dari Kolom A secara otomatis.</p>
+                                    </div>
+                                </div>
+
+                                <div class="mt-4">
+                                    <label class="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-2">Pilih File Excel Article (.xlsx / .xls)</label>
+                                    <input type="file" id="excelBatchFileInput" accept=".xlsx, .xls" class="block w-full text-xs text-slate-500 dark:text-slate-400 file:mr-3 file:py-2 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-bold file:bg-brand-50 file:text-brand-700 dark:file:bg-brand-900/40 dark:file:text-brand-300 hover:file:bg-brand-100 cursor-pointer">
+                                </div>
+                            </div>
+
+                            <button onclick="processExcelBatchInput()" class="w-full py-2.5 bg-brand-600 hover:bg-brand-700 text-white font-bold text-sm rounded-lg transition-colors flex items-center justify-center gap-2 mt-2">
+                                <i data-lucide="upload-cloud" class="w-4 h-4"></i>
+                                <span>PROSES DATA BATCH EXCEL ARTICLE</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- DASHBOARD GRID BOTTOM SECTION -->
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                        <!-- LAST SCANNED ITEM CARD -->
+                        <div class="bg-white dark:bg-slate-800 p-6 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm flex flex-col justify-between">
+                            <h3 class="text-lg font-bold text-slate-800 dark:text-white mb-4 flex items-center gap-2">
+                                <i data-lucide="clock" class="w-5 h-5 text-brand-500"></i>
+                                <span>Hasil Scan Terakhir</span>
+                            </h3>
+                            <div class="grid grid-cols-2 gap-3 text-sm flex-1">
+                                <div class="p-3 bg-slate-50 dark:bg-slate-900 rounded-lg">
+                                    <span class="text-xs text-slate-500">Brand:</span>
+                                    <div id="lastBrand" class="font-bold text-base text-slate-800 dark:text-white truncate">-</div>
+                                </div>
+                                <div class="p-3 bg-slate-50 dark:bg-slate-900 rounded-lg">
+                                    <span class="text-xs text-slate-500">Artikel:</span>
+                                    <div id="lastArtikel" class="font-bold text-base text-slate-800 dark:text-white truncate">-</div>
+                                </div>
+                                <div class="p-3 bg-slate-50 dark:bg-slate-900 rounded-lg col-span-2">
+                                    <span class="text-xs text-slate-500">Nama Barang:</span>
+                                    <div id="lastNama" class="font-bold text-base text-slate-800 dark:text-white truncate">-</div>
+                                </div>
+                                <div class="p-3 bg-slate-50 dark:bg-slate-900 rounded-lg">
+                                    <span class="text-xs text-slate-500">Stok SPR System:</span>
+                                    <div id="lastStock" class="font-bold text-base text-slate-800 dark:text-white">-</div>
+                                </div>
+                                <div class="p-3 bg-slate-50 dark:bg-slate-900 rounded-lg">
+                                    <span class="text-xs text-slate-500">Total Scan Physical:</span>
+                                    <div id="lastScannedQty" class="font-bold text-base text-brand-600 dark:text-brand-400">-</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- RECENT SCAN LOG TABLE -->
+                        <div class="bg-white dark:bg-slate-800 p-6 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm space-y-4">
+                            <div class="flex items-center justify-between">
+                                <h3 class="text-lg font-bold text-slate-800 dark:text-white flex items-center gap-2">
+                                    <i data-lucide="history" class="w-5 h-5 text-slate-500"></i>
+                                    <span>Riwayat Scan Terkini</span>
+                                </h3>
+                                <button onclick="undoLastScan()" class="px-3 py-1.5 text-xs bg-rose-100 hover:bg-rose-200 text-rose-700 dark:bg-rose-900/30 dark:text-rose-300 font-semibold rounded-lg transition-colors flex items-center gap-1">
+                                    <i data-lucide="undo" class="w-3.5 h-3.5"></i>
+                                    <span>Batalkan Scan Terakhir</span>
+                                </button>
+                            </div>
+                            <div class="max-h-52 overflow-y-auto border border-slate-200 dark:border-slate-700 rounded-lg">
+                                <table class="w-full text-left text-xs">
+                                    <thead class="bg-slate-50 dark:bg-slate-900 text-slate-500 dark:text-slate-400 sticky top-0">
+                                        <tr>
+                                            <th class="p-2.5">Waktu</th>
+                                            <th class="p-2.5">Artikel</th>
+                                            <th class="p-2.5">Nama Barang</th>
+                                            <th class="p-2.5 text-right">Aksi</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="recentScanTableBody" class="divide-y divide-slate-200 dark:divide-slate-700">
+                                        <tr>
+                                            <td colspan="4" class="p-4 text-center text-slate-400">Belum ada riwayat scan.</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- TAB CONTENT: STOCK POSITION REPORT -->
+                <div id="tab-spr" class="tab-content hidden space-y-6">
+                    <div class="bg-white dark:bg-slate-800 p-6 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm space-y-4">
+                        <h3 class="text-lg font-bold text-slate-800 dark:text-white">Stock Position Report</h3>
+                        <p class="text-sm text-slate-500 dark:text-slate-400">Unggah file laporan SPR resmi untuk mengganti data master item dasar.</p>
+
+                        <div>
+                            <label class="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">Pilih File Excel (.xlsx / .xls)</label>
+                            <input type="file" id="excelSprFileInput" accept=".xlsx, .xls" class="block w-full text-sm text-slate-500 dark:text-slate-400 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-brand-50 file:text-brand-700 hover:file:bg-brand-100 cursor-pointer">
+                        </div>
+
+                        <button onclick="processExcelSprUpload()" class="px-6 py-2.5 bg-brand-600 hover:bg-brand-700 text-white font-bold rounded-lg transition-colors flex items-center gap-2">
+                            <i data-lucide="file-up" class="w-4 h-4"></i>
+                            <span>Upload & Perbarui SPR Master</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- TAB CONTENT: MASTER INVENTORY -->
+                <div id="tab-inventory" class="tab-content hidden space-y-4">
+                    <div class="bg-white dark:bg-slate-800 p-4 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm flex flex-wrap items-center justify-between gap-4">
+                        <div class="flex items-center gap-2 flex-1 min-w-[240px]">
+                            <i data-lucide="search" class="w-5 h-5 text-slate-400"></i>
+                            <input type="text" id="inventorySearchInput" onkeyup="renderInventoryTable()" placeholder="Cari Brand / Kode Artikel / Nama Barang..." class="w-full px-3 py-2 text-sm rounded-lg border border-slate-200 dark:border-slate-700 dark:bg-slate-900 dark:text-white focus:outline-none">
+                        </div>
+                        <span class="text-xs text-slate-500 dark:text-slate-400 font-semibold">*Hanya menampilkan item dengan Stock System &gt; 0</span>
+                    </div>
+
+                    <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm overflow-hidden">
+                        <div class="max-h-[500px] overflow-y-auto">
+                            <table class="w-full text-left text-sm">
+                                <thead class="bg-slate-50 dark:bg-slate-900 text-slate-500 dark:text-slate-400 sticky top-0 border-b border-slate-200 dark:border-slate-700">
+                                    <tr>
+                                        <th class="p-3">Brand</th>
+                                        <th class="p-3">Artikel</th>
+                                        <th class="p-3">Nama Barang</th>
+                                        <th class="p-3 text-center">Stock SPR</th>
+                                        <th class="p-3 text-center">Scan Physical</th>
+                                        <th class="p-3 text-center">Selisih</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="inventoryTableBody" class="divide-y divide-slate-200 dark:divide-slate-700">
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- TAB CONTENT: DIFF ITEM -->
+                <div id="tab-diff-items" class="tab-content hidden space-y-6">
+                    <div class="bg-white dark:bg-slate-800 p-5 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm space-y-3">
+                        <div class="flex items-center justify-between flex-wrap gap-3">
+                            <div>
+                                <h3 class="text-lg font-bold text-purple-600 dark:text-purple-400 flex items-center gap-2">
+                                    <i data-lucide="alert-triangle" class="w-5 h-5"></i>
+                                    <span>Rincian & Daftar Diff Item</span>
+                                </h3>
+                                <p class="text-xs text-slate-500 dark:text-slate-400 mt-1">Halaman ini memuat rincian artikel yang tidak sesuai dengan data SPR Master (artikel tidak terdaftar dan artikel master yang selisih).</p>
+                            </div>
+                            <div class="flex items-center gap-2 w-full sm:w-auto">
+                                <div class="relative flex-1 sm:w-64">
+                                    <i data-lucide="search" class="w-4 h-4 text-slate-400 absolute left-3 top-2.5"></i>
+                                    <input type="text" id="diffSearchInput" onkeyup="renderAllData()" placeholder="Cari Brand / Artikel / Nama Barang..." class="w-full pl-9 pr-3 py-1.5 text-xs rounded-lg border border-slate-200 dark:border-slate-700 dark:bg-slate-900 dark:text-white focus:outline-none">
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- KPI BREAKDOWN METRICS -->
+                        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 pt-2">
+                            <div class="p-3 bg-purple-50 dark:bg-purple-950/30 rounded-lg border border-purple-200 dark:border-purple-800/50">
+                                <span class="text-xs text-purple-700 dark:text-purple-300 font-semibold uppercase">Total Artikel Bermasalah</span>
+                                <div id="diffKpiTotal" class="text-xl font-extrabold text-purple-700 dark:text-purple-300 mt-0.5">0 Jenis</div>
+                            </div>
+                            <div class="p-3 bg-blue-50 dark:bg-blue-950/30 rounded-lg border border-blue-200 dark:border-blue-800/50">
+                                <span class="text-xs text-blue-700 dark:text-blue-300 font-semibold uppercase">Total Stock Master SPR</span>
+                                <div id="diffKpiMasterStock" class="text-xl font-bold text-blue-700 dark:text-blue-300 mt-0.5">0 pcs</div>
+                            </div>
+                            <div class="p-3 bg-slate-50 dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-700">
+                                <span class="text-xs text-slate-500 dark:text-slate-400 font-semibold uppercase">Tidak Ada di SPR Master</span>
+                                <div id="diffKpiNonMaster" class="text-xl font-bold text-slate-800 dark:text-white mt-0.5">0 Jenis <span id="diffKpiNonMasterQty" class="text-xs font-normal text-slate-500">(0 pcs)</span></div>
+                            </div>
+                            <div class="p-3 bg-rose-50 dark:bg-rose-950/30 rounded-lg border border-rose-200 dark:border-rose-800/50">
+                                <span class="text-xs text-rose-700 dark:text-rose-300 font-semibold uppercase">Selisih Kurang</span>
+                                <div id="diffKpiShortage" class="text-xl font-bold text-rose-600 dark:text-rose-400 mt-0.5">0 Jenis <span id="diffKpiShortageQty" class="text-xs font-normal text-rose-500">(-0 pcs)</span></div>
+                            </div>
+                            <div class="p-3 bg-amber-50 dark:bg-amber-950/30 rounded-lg border border-amber-200 dark:border-amber-800/50">
+                                <span class="text-xs text-amber-700 dark:text-amber-300 font-semibold uppercase">Selisih Plus</span>
+                                <div id="diffKpiSurplus" class="text-xl font-bold text-amber-600 dark:text-amber-400 mt-0.5">0 Jenis <span id="diffKpiSurplusQty" class="text-xs font-normal text-amber-500">(+0 pcs)</span></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- TABEL 1: ARTIKEL NON-MASTER -->
+                    <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm overflow-hidden">
+                        <div class="p-4 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between bg-purple-50/40 dark:bg-purple-950/20">
+                            <h4 class="font-bold text-slate-800 dark:text-white flex items-center gap-2 text-sm">
+                                <i data-lucide="alert-circle" class="w-4 h-4 text-purple-600 dark:text-purple-400"></i>
+                                <span>1. Artikel Tidak Terdaftar di SPR Master</span>
+                            </h4>
+                            <span class="text-xs font-semibold px-2.5 py-1 bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-300 rounded-full">Non-Master Items</span>
+                        </div>
+                        <div class="max-h-[300px] overflow-y-auto">
+                            <table class="w-full text-left text-sm">
+                                <thead class="bg-slate-50 dark:bg-slate-900 text-slate-500 dark:text-slate-400 sticky top-0 border-b border-slate-200 dark:border-slate-700">
+                                    <tr>
+                                        <th class="p-3">Artikel Barcode</th>
+                                        <th class="p-3">Keterangan</th>
+                                        <th class="p-3 text-center">Fisik Ter-scan</th>
+                                        <th class="p-3 text-center">Rincian Dampak</th>
+                                        <th class="p-3 text-right">Aksi Koreksi</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="diffItemsTableBody" class="divide-y divide-slate-200 dark:divide-slate-700">
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- TABEL 2: ARTIKEL MASTER YANG SELISIH STOK -->
+                    <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm overflow-hidden">
+                        <div class="p-4 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between bg-amber-50/40 dark:bg-amber-950/20">
+                            <h4 class="font-bold text-slate-800 dark:text-white flex items-center gap-2 text-sm">
+                                <i data-lucide="file-diff" class="w-4 h-4 text-amber-500"></i>
+                                <span>2. Artikel Master SPR yang Memiliki Selisih Stok</span>
+                            </h4>
+                            <span class="text-xs font-semibold px-2.5 py-1 bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300 rounded-full">Artikel Master Ber-selisih</span>
+                        </div>
+                        <div class="max-h-[350px] overflow-y-auto">
+                            <table class="w-full text-left text-sm">
+                                <thead class="bg-slate-50 dark:bg-slate-900 text-slate-500 dark:text-slate-400 sticky top-0 border-b border-slate-200 dark:border-slate-700">
+                                    <tr>
+                                        <th class="p-3">Brand</th>
+                                        <th class="p-3">Artikel</th>
+                                        <th class="p-3">Nama Barang</th>
+                                        <th class="p-3 text-center">Stock SPR</th>
+                                        <th class="p-3 text-center">Scan Physical</th>
+                                        <th class="p-3 text-center">Selisih Qty</th>
+                                        <th class="p-3 text-center">Status</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="masterDiffTableBody" class="divide-y divide-slate-200 dark:divide-slate-700">
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- TAB CONTENT: SELISIH PLUS (SURPLUS DIRECT VIEW) -->
+                <div id="tab-surplus" class="tab-content hidden space-y-6">
+                    <div class="bg-white dark:bg-slate-800 p-5 rounded-xl border border-amber-200 dark:border-amber-900/50 shadow-sm space-y-4">
+                        <div class="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+                            <div>
+                                <h3 class="text-lg font-bold text-amber-600 dark:text-amber-400 flex items-center gap-2">
+                                    <i data-lucide="trending-up" class="w-5 h-5"></i>
+                                    <span>Daftar Khusus Artikel Selisih Plus (+ Surplus)</span>
+                                </h3>
+                                <p class="text-xs text-slate-500 dark:text-slate-400 mt-1">Daftar langsung barang yang jumlah scan fisiknya melebihi stok di sistem SPR Master.</p>
+                            </div>
+                            <div class="flex items-center gap-3 w-full md:w-auto">
+                                <div class="relative flex-1 md:w-64">
+                                    <i data-lucide="search" class="w-4 h-4 text-slate-400 absolute left-3 top-2.5"></i>
+                                    <input type="text" id="surplusSearchInput" onkeyup="renderSurplusTable()" placeholder="Cari Brand / Artikel / Nama Barang..." class="w-full pl-9 pr-3 py-1.5 text-xs rounded-lg border border-slate-200 dark:border-slate-700 dark:bg-slate-900 dark:text-white focus:outline-none">
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- KPI BANNER SELISIH PLUS -->
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <div class="p-4 bg-amber-50 dark:bg-amber-950/40 rounded-lg border border-amber-200 dark:border-amber-800/60 flex items-center justify-between">
+                                <div>
+                                    <span class="text-xs font-semibold text-amber-700 dark:text-amber-300 uppercase">Total Variasi Barang Selisih Plus</span>
+                                    <div id="surplusTotalTypes" class="text-2xl font-bold text-amber-700 dark:text-amber-300 mt-1">0 Jenis</div>
+                                </div>
+                                <div class="p-3 bg-amber-500/20 text-amber-600 dark:text-amber-300 rounded-full">
+                                    <i data-lucide="boxes" class="w-6 h-6"></i>
+                                </div>
+                            </div>
+                            <div class="p-4 bg-emerald-50 dark:bg-emerald-950/40 rounded-lg border border-emerald-200 dark:border-emerald-800/60 flex items-center justify-between">
+                                <div>
+                                    <span class="text-xs font-semibold text-emerald-700 dark:text-emerald-300 uppercase">Total Kelebihan Unit (+Pcs)</span>
+                                    <div id="surplusTotalUnits" class="text-2xl font-bold text-emerald-700 dark:text-emerald-300 mt-1">+0 Pcs</div>
+                                </div>
+                                <div class="p-3 bg-emerald-500/20 text-emerald-600 dark:text-emerald-300 rounded-full">
+                                    <i data-lucide="plus-circle" class="w-6 h-6"></i>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- TABEL ARTIKEL SELISIH PLUS -->
+                        <div class="border border-slate-200 dark:border-slate-700 rounded-lg overflow-hidden">
+                            <div class="max-h-[500px] overflow-y-auto">
+                                <table class="w-full text-left text-sm">
+                                    <thead class="bg-amber-50/70 dark:bg-slate-900 text-slate-700 dark:text-slate-300 sticky top-0 border-b border-slate-200 dark:border-slate-700">
+                                        <tr>
+                                            <th class="p-3">Brand</th>
+                                            <th class="p-3">Kode Artikel</th>
+                                            <th class="p-3">Nama Barang</th>
+                                            <th class="p-3 text-center">Stok SPR</th>
+                                            <th class="p-3 text-center">Scan Fisik</th>
+                                            <th class="p-3 text-center">Kelebihan (+Qty)</th>
+                                            <th class="p-3 text-center">Status</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="surplusTableBody" class="divide-y divide-slate-200 dark:divide-slate-700">
+                                        <tr>
+                                            <td colspan="7" class="p-4 text-center text-slate-400">Belum ada barang dengan selisih plus.</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- TAB CONTENT: EXPORT -->
+                <div id="tab-export" class="tab-content hidden space-y-6">
+                    <div class="bg-white dark:bg-slate-800 p-6 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm space-y-4">
+                        <div>
+                            <h3 class="text-lg font-bold text-slate-800 dark:text-white flex items-center gap-2">
+                                <i data-lucide="download" class="w-5 h-5 text-brand-600"></i>
+                                <span>Export Hasil Stock Opname ke Excel</span>
+                            </h3>
+                            <p class="text-xs text-slate-500 dark:text-slate-400 mt-1">Unduh laporan hasil selisih stok, diff item non-master, maupun rekapitulasi seluruh item ke dalam format file Excel (.xlsx).</p>
+                        </div>
+
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 pt-2">
+                            <!-- EXPORT ALL -->
+                            <div class="bg-slate-50 dark:bg-slate-900 p-5 rounded-xl border border-slate-200 dark:border-slate-700 flex flex-col justify-between space-y-4">
+                                <div>
+                                    <div class="p-2.5 bg-brand-100 dark:bg-brand-900/40 text-brand-600 dark:text-brand-300 w-fit rounded-lg mb-3">
+                                        <i data-lucide="file-spreadsheet" class="w-6 h-6"></i>
+                                    </div>
+                                    <h4 class="font-bold text-slate-800 dark:text-white text-base">Laporan Lengkap (Multi-Sheet)</h4>
+                                    <p class="text-xs text-slate-500 dark:text-slate-400 mt-1">Mencakup semua data: Artikel Non-Master, Selisih Stok Master SPR, dan Master Inventory Lengkap dalam 1 file Excel.</p>
+                                </div>
+                                <button onclick="exportToExcel('all')" class="w-full py-2.5 bg-brand-600 hover:bg-brand-700 text-white font-bold text-xs rounded-lg transition-colors flex items-center justify-center gap-2">
+                                    <i data-lucide="download" class="w-4 h-4"></i>
+                                    <span>DOWNLOAD LAPORAN LENGKAP</span>
+                                </button>
+                            </div>
+
+                            <!-- EXPORT DIFF & SELISIH ONLY -->
+                            <div class="bg-slate-50 dark:bg-slate-900 p-5 rounded-xl border border-slate-200 dark:border-slate-700 flex flex-col justify-between space-y-4">
+                                <div>
+                                    <div class="p-2.5 bg-purple-100 dark:bg-purple-900/40 text-purple-600 dark:text-purple-300 w-fit rounded-lg mb-3">
+                                        <i data-lucide="alert-triangle" class="w-6 h-6"></i>
+                                    </div>
+                                    <h4 class="font-bold text-slate-800 dark:text-white text-base">Hanya Selisih & Diff Item</h4>
+                                    <p class="text-xs text-slate-500 dark:text-slate-400 mt-1">Mengekspor hanya artikel yang memiliki selisih stok (kurang/plus) dan artikel non-master yang tidak ada di SPR.</p>
+                                </div>
+                                <button onclick="exportToExcel('diff-only')" class="w-full py-2.5 bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs rounded-lg transition-colors flex items-center justify-center gap-2">
+                                    <i data-lucide="download" class="w-4 h-4"></i>
+                                    <span>DOWNLOAD KHUSUS SELISIH</span>
+                                </button>
+                            </div>
+
+                            <!-- EXPORT MASTER INVENTORY ONLY -->
+                            <div class="bg-slate-50 dark:bg-slate-900 p-5 rounded-xl border border-slate-200 dark:border-slate-700 flex flex-col justify-between space-y-4">
+                                <div>
+                                    <div class="p-2.5 bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-300 w-fit rounded-lg mb-3">
+                                        <i data-lucide="list-checks" class="w-6 h-6"></i>
+                                    </div>
+                                    <h4 class="font-bold text-slate-800 dark:text-white text-base">Master Inventory Accessories</h4>
+                                    <p class="text-xs text-slate-500 dark:text-slate-400 mt-1">Mengekspor rekapitulasi seluruh artikel Master Accessories beserta perbandingan stok SPR dan hasil scan fisik.</p>
+                                </div>
+                                <button onclick="exportToExcel('full-inventory')" class="w-full py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-lg transition-colors flex items-center justify-center gap-2">
+                                    <i data-lucide="download" class="w-4 h-4"></i>
+                                    <span>DOWNLOAD MASTER INVENTORY</span>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </main>
+    </div>
+
+    <!-- MODAL REALTIME SYNC SETTINGS -->
+    <div id="syncModal" class="hidden fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
+        <div class="bg-white dark:bg-slate-800 rounded-xl shadow-2xl border border-slate-200 dark:border-slate-700 max-w-lg w-full p-6 space-y-4">
+            <div class="flex items-center justify-between border-b border-slate-200 dark:border-slate-700 pb-3">
+                <h3 class="text-lg font-bold text-slate-800 dark:text-white flex items-center gap-2">
+                    <i data-lucide="cloud-lightning" class="w-5 h-5 text-brand-600"></i>
+                    <span>Pengaturan Realtime Sync (Multi Device)</span>
+                </h3>
+                <button onclick="closeSyncModal()" class="text-slate-400 hover:text-slate-600 dark:hover:text-white">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+
+            <p class="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
+                Untuk menghubungkan beberapa HP / Laptop secara bersamaan (*Realtime*), masukkan <strong>URL Web App Google Apps Script</strong> Anda di bawah ini:
+            </p>
+
+            <div>
+                <label class="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Web App Exec Endpoint URL</label>
+                <input type="url" id="webAppUrlInput" placeholder="https://script.google.com/macros/s/.../exec" class="w-full px-3 py-2 text-xs rounded-lg border border-slate-300 dark:border-slate-600 dark:bg-slate-900 dark:text-white focus:outline-none">
+            </div>
+
+            <div class="flex items-center justify-between pt-2">
+                <button onclick="disableSync()" class="px-3 py-2 bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 text-xs font-bold rounded-lg hover:bg-slate-300 transition-colors">
+                    Mode Standalone (Offline)
+                </button>
+                <button onclick="saveSyncSettings()" class="px-4 py-2 bg-brand-600 hover:bg-brand-700 text-white text-xs font-bold rounded-lg transition-colors flex items-center gap-1.5">
+                    <i data-lucide="save" class="w-4 h-4"></i>
+                    <span>Simpan & Sambungkan</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // GLOBAL DATA STATE
+        let masterInventory = [];
+        let diffItemsList = {};
+        let recentScanLogs = [];
+        let isSidebarCollapsed = false;
+        let syncServerUrl = localStorage.getItem('opname_sync_url') || '';
+        let syncInterval = null;
+
+        // INITIALIZATION
+        window.onload = function() {
+            if (window.lucide) {
+                lucide.createIcons();
+            }
+            if (syncServerUrl) {
+                updateSyncUI(true, 'Terhubung Server');
+                startRealtimePolling();
+            }
+            renderAllData();
+        };
+
+        // CLOSE SUGGESTIONS DROPDOWN ON OUTSIDE CLICK
+        document.addEventListener('click', function(e) {
+            const container = document.getElementById('barcodeInput')?.parentElement;
+            if (container && !container.contains(e.target)) {
+                hideSuggestions();
+            }
+        });
+
+        // SIDEBAR TOGGLE HANDLER
+        function toggleSidebar() {
+            const sidebar = document.getElementById('sidebar');
+            const toggleBtn = document.getElementById('sidebarToggle');
+            const toggleIcon = document.getElementById('toggleIcon');
+            
+            isSidebarCollapsed = !isSidebarCollapsed;
+            if (isSidebarCollapsed) {
+                sidebar.classList.add('-translate-x-full', 'w-0');
+                sidebar.classList.remove('w-64');
+                toggleBtn.classList.remove('left-64');
+                toggleBtn.classList.add('left-0');
+                if (toggleIcon) toggleIcon.setAttribute('data-lucide', 'chevron-right');
+            } else {
+                sidebar.classList.remove('-translate-x-full', 'w-0');
+                sidebar.classList.add('w-64');
+                toggleBtn.classList.remove('left-0');
+                toggleBtn.classList.add('left-64');
+                if (toggleIcon) toggleIcon.setAttribute('data-lucide', 'chevron-left');
+            }
+            if (window.lucide) lucide.createIcons();
+        }
+
+        // DARK MODE TOGGLE HANDLER
+        function toggleTheme() {
+            const isDark = document.documentElement.classList.toggle('dark');
+            const themeIcon = document.getElementById('themeIcon');
+            if (themeIcon) {
+                themeIcon.setAttribute('data-lucide', isDark ? 'sun' : 'moon');
+                if (window.lucide) lucide.createIcons();
+            }
+        }
+
+        // TAB NAVIGATION SWITCH
+        function switchTab(tabId) {
+            const tabs = ['scanner', 'spr', 'inventory', 'diff-items', 'surplus', 'export'];
+            const pageTitles = {
+                'scanner': 'Scanner & Live Input',
+                'spr': 'Stock Position Report',
+                'inventory': 'Master Inventory',
+                'diff-items': 'Diff Item',
+                'surplus': 'Daftar Artikel Selisih Plus',
+                'export': 'Export Laporan Excel'
+            };
+
+            tabs.forEach(id => {
+                const tabEl = document.getElementById(`tab-${id}`);
+                const btnEl = document.getElementById(`btn-${id}`);
+                if (tabEl) {
+                    if (id === tabId) {
+                        tabEl.classList.remove('hidden');
+                    } else {
+                        tabEl.classList.add('hidden');
+                    }
+                }
+                if (btnEl) {
+                    if (id === tabId) {
+                        btnEl.classList.add('bg-brand-600', 'text-white');
+                        btnEl.classList.remove('hover:bg-slate-800', 'hover:text-white');
+                    } else {
+                        btnEl.classList.remove('bg-brand-600', 'text-white');
+                        btnEl.classList.add('hover:bg-slate-800', 'hover:text-white');
+                    }
+                }
+            });
+
+            const pageTitleEl = document.getElementById('pageTitle');
+            if (pageTitleEl && pageTitles[tabId]) {
+                pageTitleEl.innerText = pageTitles[tabId];
+            }
+
+            if (tabId === 'surplus') renderSurplusTable();
+
+            if (window.lucide) lucide.createIcons();
+        }
+
+        // LIVE SEARCH & STOCK RECOMMENDATION FOR BARCODE / BRAND / ITEM NAME
+        function handleBarcodeSearchInput(value) {
+            const query = value.trim().toLowerCase();
+            const container = document.getElementById('scanSuggestions');
+            if (!container) return;
+
+            if (!query) {
+                hideSuggestions();
+                return;
+            }
+
+            const matches = masterInventory.filter(i => 
+                (i.brand && i.brand.toLowerCase().includes(query)) ||
+                i.artikel.toLowerCase().includes(query) || 
+                i.nama.toLowerCase().includes(query)
+            ).slice(0, 8);
+
+            if (matches.length === 0) {
+                container.innerHTML = `
+                    <div class="p-3 text-xs text-slate-400 italic">
+                        Tidak ada barang master yang cocok. Tekan <span class="font-bold text-slate-600 dark:text-slate-200">Enter / SCAN</span> untuk memasukkan sebagai Non-Master.
+                    </div>
+                `;
+            } else {
+                container.innerHTML = matches.map(item => `
+                    <div onclick="selectSuggestion('${item.artikel}')" class="p-3 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer transition-colors flex items-center justify-between gap-2">
+                        <div class="overflow-hidden">
+                            <div class="font-bold text-xs text-slate-800 dark:text-slate-100 truncate">${item.nama}</div>
+                            <div class="text-[11px] text-slate-500 dark:text-slate-400 font-mono">
+                                <span class="text-brand-600 dark:text-brand-400 font-semibold">[${item.brand || '-'}]</span> Kode: ${item.artikel}
+                            </div>
+                        </div>
+                        <div class="text-right shrink-0">
+                            <span class="text-[11px] font-semibold px-2 py-0.5 rounded ${item.stock > 0 ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300' : 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400'}">
+                                Stok SPR: ${item.stock}
+                            </span>
+                            <div class="text-[10px] text-brand-600 dark:text-brand-400 font-bold mt-0.5">Scanned: ${item.scanned}</div>
+                        </div>
+                    </div>
+                `).join('');
+            }
+
+            container.classList.remove('hidden');
+        }
+
+        function hideSuggestions() {
+            const container = document.getElementById('scanSuggestions');
+            if (container) container.classList.add('hidden');
+        }
+
+        function selectSuggestion(artikelCode) {
+            const input = document.getElementById('barcodeInput');
+            if (input) {
+                input.value = artikelCode;
+            }
+            hideSuggestions();
+            handleScanSubmit();
+        }
+
+        function handleBarcodeKeyDown(e) {
+            if (e.key === 'Enter') {
+                hideSuggestions();
+                handleScanSubmit();
+            } else if (e.key === 'Escape') {
+                hideSuggestions();
+            }
+        }
+
+        // SINGLE SCANNER SUBMIT HANDLER
+        function handleScanSubmit() {
+            const input = document.getElementById('barcodeInput');
+            if (!input) return;
+            const code = input.value.trim();
+            if (!code) return;
+
+            const now = new Date();
+            const timeStr = now.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+
+            const item = masterInventory.find(i => String(i.artikel).toLowerCase() === code.toLowerCase());
+
+            if (item) {
+                item.scanned++;
+                recentScanLogs.unshift({
+                    time: timeStr,
+                    artikel: item.artikel,
+                    nama: item.nama,
+                    brand: item.brand,
+                    isMaster: true
+                });
+
+                updateLastScanCard(item.artikel, item.nama, item.stock, item.scanned, item.brand);
+                showScanFeedback(`Berhasil scan master: [${item.brand}] ${item.artikel} (${item.nama})`, 'success');
+            } else {
+                if (!diffItemsList[code]) {
+                    diffItemsList[code] = { artikel: code, count: 0 };
+                }
+                diffItemsList[code].count++;
+                recentScanLogs.unshift({
+                    time: timeStr,
+                    artikel: code,
+                    nama: 'Non-Master Item',
+                    brand: '-',
+                    isMaster: false
+                });
+
+                updateLastScanCard(code, 'Non-Master Item', 0, diffItemsList[code].count, '-');
+                showScanFeedback(`Diff item non-master: ${code}`, 'warning');
+            }
+
+            if (syncServerUrl) {
+                sendScanToServer(code);
+            }
+
+            input.value = '';
+            hideSuggestions();
+            input.focus();
+            renderAllData();
+        }
+
+        // BATCH EXCEL ARTICLE INPUT
+        function processExcelBatchInput() {
+            const fileInput = document.getElementById('excelBatchFileInput');
+
+            if (!fileInput.files.length) {
+                alert('Silakan pilih file Batch Excel Article terlebih dahulu!');
+                return;
+            }
+
+            const file = fileInput.files[0];
+            const reader = new FileReader();
+
+            reader.onload = (e) => {
+                const data = new Uint8Array(e.target.result);
+                const workbook = XLSX.read(data, { type: 'array' });
+                const firstSheetName = workbook.SheetNames[0];
+                const worksheet = workbook.Sheets[firstSheetName];
+                const rows = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+
+                let successCount = 0;
+                let nonMasterCount = 0;
+
+                for (let r = 0; r < rows.length; r++) {
+                    const row = rows[r];
+                    if (row && row[0] !== undefined && row[0] !== null) {
+                        const code = String(row[0]).trim();
+                        if (code !== "" && code.toLowerCase() !== "artikel" && code.toLowerCase() !== "kode") {
+                            const item = masterInventory.find(i => String(i.artikel).toLowerCase() === code.toLowerCase());
+                            if (item) {
+                                item.scanned++;
+                                successCount++;
+                            } else {
+                                if (!diffItemsList[code]) {
+                                    diffItemsList[code] = { artikel: code, count: 0 };
+                                }
+                                diffItemsList[code].count++;
+                                nonMasterCount++;
+                            }
+                        }
+                    }
+                }
+
+                alert(`Proses Batch Excel Article Selesai!\n- Item Master Ter-update: ${successCount} unit\n- Non-Master Item Ditambahkan: ${nonMasterCount} unit`);
+                fileInput.value = '';
+                renderAllData();
+            };
+
+            reader.readAsArrayBuffer(file);
+        }
+
+        // PROCESS SPR MASTER EXCEL UPLOAD (AMBIL BRAND DARI KOLOM A)
+        function processExcelSprUpload() {
+            const fileInput = document.getElementById('excelSprFileInput');
+            if (!fileInput.files.length) {
+                alert('Silakan pilih file Excel SPR!');
+                return;
+            }
+
+            const file = fileInput.files[0];
+            const reader = new FileReader();
+
+            reader.onload = (e) => {
+                const data = new Uint8Array(e.target.result);
+                const workbook = XLSX.read(data, { type: 'array' });
+                const worksheet = workbook.Sheets[workbook.SheetNames[0]];
+                const rows = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+
+                const newMaster = [];
+                let ignoredCount = 0;
+
+                // Membaca data mulai baris ke-3 (index 2)
+                for (let i = 2; i < rows.length; i++) {
+                    const row = rows[i];
+                    if (row && row[5]) { // Kolom F = Artikel (index 5)
+                        const kategori = row[2] ? String(row[2]).trim() : '';
+
+                        if (kategori.toLowerCase().includes('accessories')) {
+                            newMaster.push({
+                                brand: row[0] ? String(row[0]).trim() : '-', // Kolom A = Brand (index 0)
+                                artikel: String(row[5]).trim(),             // Kolom F = Artikel
+                                nama: row[4] ? String(row[4]).trim() : '-',   // Kolom E = Nama Barang
+                                stock: parseInt(row[7]) || 0,                 // Kolom H = Stock System
+                                scanned: 0,
+                                kategori: kategori
+                            });
+                        } else {
+                            ignoredCount++;
+                        }
+                    }
+                }
+
+                masterInventory = newMaster;
+                alert(`SPR Master Berhasil Dimuat!\n- Total Artikel Accessories Dimuat: ${newMaster.length} item\n- Artikel Kategori Lain Diabaikan: ${ignoredCount} item`);
+                fileInput.value = '';
+                renderAllData();
+                switchTab('inventory');
+            };
+
+            reader.readAsArrayBuffer(file);
+        }
+
+        // RENDER DATA & TABLES
+        function renderAllData() {
+            renderKpis();
+            renderRecentScanTable();
+            renderInventoryTable();
+            renderMasterDiffTable();
+            renderDiffItemsTable();
+            renderSurplusTable();
+        }
+
+        // UPDATE KPI METRICS
+        function renderKpis() {
+            let totalMasterStockUnits = 0;
+            let totalScannedMaster = 0;
+            let match = 0, matchUnits = 0;
+            let shortage = 0, totalShortageUnits = 0;
+            let surplus = 0, totalSurplusUnits = 0;
+            let diffMasterStockUnits = 0;
+
+            const activeMasterItems = masterInventory.filter(i => i.stock > 0);
+
+            activeMasterItems.forEach(i => {
+                totalMasterStockUnits += i.stock;
+                totalScannedMaster += i.scanned;
+                const diff = i.scanned - i.stock;
+                if (diff === 0) {
+                    match++;
+                    matchUnits += i.scanned;
+                } else if (diff < 0) {
+                    shortage++;
+                    totalShortageUnits += Math.abs(diff);
+                    diffMasterStockUnits += i.stock;
+                } else {
+                    surplus++;
+                    totalSurplusUnits += diff;
+                    diffMasterStockUnits += i.stock;
+                }
+            });
+
+            let nonMasterCount = 0;
+            let nonMasterTypes = 0;
+            Object.values(diffItemsList).forEach(d => {
+                if (d.count > 0) {
+                    nonMasterCount += d.count;
+                    nonMasterTypes++;
+                }
+            });
+
+            const totalDiffTypes = shortage + surplus + nonMasterTypes;
+
+            // Scanner Tab KPIs
+            const kpiTotalMaster = document.getElementById('kpiTotalMaster');
+            const kpiTotalScanned = document.getElementById('kpiTotalScanned');
+            const kpiDiffItems = document.getElementById('kpiDiffItems');
+            const kpiMatch = document.getElementById('kpiMatch');
+            const kpiShortage = document.getElementById('kpiShortage');
+            const kpiSurplus = document.getElementById('kpiSurplus');
+
+            if (kpiTotalMaster) kpiTotalMaster.innerText = `${totalMasterStockUnits.toLocaleString('id-ID')} pcs`;
+            if (kpiTotalScanned) kpiTotalScanned.innerText = `${(totalScannedMaster + nonMasterCount).toLocaleString('id-ID')} pcs`;
+            if (kpiDiffItems) kpiDiffItems.innerText = `${nonMasterCount.toLocaleString('id-ID')} pcs`;
+            if (kpiMatch) kpiMatch.innerText = `${matchUnits.toLocaleString('id-ID')} pcs`;
+            if (kpiShortage) kpiShortage.innerText = `-${totalShortageUnits.toLocaleString('id-ID')} pcs`;
+            if (kpiSurplus) kpiSurplus.innerText = `+${totalSurplusUnits.toLocaleString('id-ID')} pcs`;
+
+            // Diff Items Tab Metrics Breakdown
+            const diffKpiTotal = document.getElementById('diffKpiTotal');
+            const diffKpiMasterStock = document.getElementById('diffKpiMasterStock');
+            const diffKpiNonMaster = document.getElementById('diffKpiNonMaster');
+            const diffKpiNonMasterQty = document.getElementById('diffKpiNonMasterQty');
+            const diffKpiShortage = document.getElementById('diffKpiShortage');
+            const diffKpiShortageQty = document.getElementById('diffKpiShortageQty');
+            const diffKpiSurplus = document.getElementById('diffKpiSurplus');
+            const diffKpiSurplusQty = document.getElementById('diffKpiSurplusQty');
+
+            if (diffKpiTotal) diffKpiTotal.innerText = `${totalDiffTypes} Types`;
+            if (diffKpiMasterStock) diffKpiMasterStock.innerText = `${diffMasterStockUnits.toLocaleString('id-ID')} pcs`;
+            if (diffKpiNonMaster) diffKpiNonMaster.innerText = `${nonMasterTypes} Types`;
+            if (diffKpiNonMasterQty) diffKpiNonMasterQty.innerText = `(${nonMasterCount} pcs)`;
+            if (diffKpiShortage) diffKpiShortage.innerText = `${shortage} Types`;
+            if (diffKpiShortageQty) diffKpiShortageQty.innerText = `(-${totalShortageUnits} pcs)`;
+            if (diffKpiSurplus) diffKpiSurplus.innerText = `${surplus} Types`;
+            if (diffKpiSurplusQty) diffKpiSurplusQty.innerText = `(+${totalSurplusUnits} pcs)`;
+        }
+
+        // RENDER TAB SELISIH PLUS (SURPLUS TABLE)
+        function renderSurplusTable() {
+            const tbody = document.getElementById('surplusTableBody');
+            if (!tbody) return;
+
+            const query = (document.getElementById('surplusSearchInput')?.value || '').toLowerCase();
+
+            const surplusItems = masterInventory.filter(i => 
+                i.scanned > i.stock &&
+                ((i.brand && i.brand.toLowerCase().includes(query)) ||
+                 i.artikel.toLowerCase().includes(query) || 
+                 i.nama.toLowerCase().includes(query))
+            );
+
+            let totalSurplusTypes = surplusItems.length;
+            let totalSurplusUnits = 0;
+
+            if (surplusItems.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="7" class="p-4 text-center text-slate-400">Belum ada barang dengan selisih plus.</td></tr>`;
+            } else {
+                tbody.innerHTML = surplusItems.map(i => {
+                    const surplusQty = i.scanned - i.stock;
+                    totalSurplusUnits += surplusQty;
+
+                    return `
+                        <tr class="hover:bg-amber-50/50 dark:hover:bg-slate-800/50">
+                            <td class="p-3 font-semibold text-slate-800 dark:text-slate-200">${i.brand || '-'}</td>
+                            <td class="p-3 font-bold text-slate-800 dark:text-slate-100 font-mono">${i.artikel}</td>
+                            <td class="p-3 text-slate-700 dark:text-slate-200">${i.nama}</td>
+                            <td class="p-3 text-center font-semibold text-slate-600 dark:text-slate-400">${i.stock}</td>
+                            <td class="p-3 text-center font-bold text-brand-600 dark:text-brand-400">${i.scanned}</td>
+                            <td class="p-3 text-center font-bold text-amber-600 dark:text-amber-400">+${surplusQty} pcs</td>
+                            <td class="p-3 text-center">
+                                <span class="px-2.5 py-1 bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300 rounded text-xs font-semibold">Selisih Plus (+${surplusQty})</span>
+                            </td>
+                        </tr>
+                    `;
+                }).join('');
+            }
+
+            const totalTypesEl = document.getElementById('surplusTotalTypes');
+            const totalUnitsEl = document.getElementById('surplusTotalUnits');
+
+            if (totalTypesEl) totalTypesEl.innerText = `${totalSurplusTypes} Jenis`;
+            if (totalUnitsEl) totalUnitsEl.innerText = `+${totalSurplusUnits} Pcs`;
+        }
+
+        function renderRecentScanTable() {
+            const tbody = document.getElementById('recentScanTableBody');
+            if (!tbody) return;
+            if (recentScanLogs.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="4" class="p-4 text-center text-slate-400">Belum ada riwayat scan.</td></tr>`;
+                return;
+            }
+
+            tbody.innerHTML = recentScanLogs.slice(0, 10).map((log, index) => `
+                <tr class="hover:bg-slate-50 dark:hover:bg-slate-800">
+                    <td class="p-2.5 text-slate-500">${log.time}</td>
+                    <td class="p-2.5 font-bold text-slate-800 dark:text-slate-100">${log.artikel}</td>
+                    <td class="p-2.5 text-slate-600 dark:text-slate-300">${log.nama}</td>
+                    <td class="p-2.5 text-right">
+                        <button onclick="removeScanLog(${index})" class="text-rose-600 hover:text-rose-800 font-bold">Hapus (-1)</button>
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        function removeScanLog(index) {
+            const log = recentScanLogs[index];
+            if (!log) return;
+
+            if (log.isMaster) {
+                const item = masterInventory.find(i => String(i.artikel).toLowerCase() === log.artikel.toLowerCase());
+                if (item && item.scanned > 0) item.scanned--;
+            } else {
+                if (diffItemsList[log.artikel] && diffItemsList[log.artikel].count > 0) {
+                    diffItemsList[log.artikel].count--;
+                    if (diffItemsList[log.artikel].count === 0) delete diffItemsList[log.artikel];
+                }
+            }
+
+            recentScanLogs.splice(index, 1);
+            renderAllData();
+        }
+
+        function undoLastScan() {
+            if (recentScanLogs.length > 0) removeScanLog(0);
+        }
+
+        function renderInventoryTable() {
+            const query = (document.getElementById('inventorySearchInput')?.value || '').toLowerCase();
+            const tbody = document.getElementById('inventoryTableBody');
+            if (!tbody) return;
+
+            const filtered = masterInventory.filter(i => 
+                i.stock > 0 && 
+                ((i.brand && i.brand.toLowerCase().includes(query)) ||
+                 i.artikel.toLowerCase().includes(query) || 
+                 i.nama.toLowerCase().includes(query))
+            );
+
+            if (filtered.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="6" class="p-4 text-center text-slate-400">Tidak ada data ditemukan.</td></tr>`;
+                return;
+            }
+
+            tbody.innerHTML = filtered.map(i => {
+                const diff = i.scanned - i.stock;
+                let diffBadge = `<span class="text-emerald-600 font-bold">0</span>`;
+                if (diff < 0) diffBadge = `<span class="text-rose-600 font-bold">${diff}</span>`;
+                else if (diff > 0) diffBadge = `<span class="text-amber-600 font-bold">+${diff}</span>`;
+
+                return `
+                    <tr class="hover:bg-slate-50 dark:hover:bg-slate-800/50">
+                        <td class="p-3 font-semibold text-slate-800 dark:text-slate-200">${i.brand || '-'}</td>
+                        <td class="p-3 font-semibold text-slate-800 dark:text-slate-200">${i.artikel}</td>
+                        <td class="p-3 text-slate-600 dark:text-slate-300">${i.nama}</td>
+                        <td class="p-3 text-center font-bold text-slate-700 dark:text-slate-300">${i.stock}</td>
+                        <td class="p-3 text-center font-bold text-brand-600 dark:text-brand-400">${i.scanned}</td>
+                        <td class="p-3 text-center">${diffBadge}</td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        function renderMasterDiffTable() {
+            const tbody = document.getElementById('masterDiffTableBody');
+            if (!tbody) return;
+
+            const searchQuery = (document.getElementById('diffSearchInput')?.value || '').toLowerCase();
+
+            const diffMasterItems = masterInventory.filter(i => 
+                i.stock > 0 && 
+                i.scanned !== i.stock &&
+                ((i.brand && i.brand.toLowerCase().includes(searchQuery)) ||
+                 i.artikel.toLowerCase().includes(searchQuery) || 
+                 i.nama.toLowerCase().includes(searchQuery))
+            );
+
+            if (diffMasterItems.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="7" class="p-4 text-center text-slate-400">Tidak ada artikel master yang memiliki selisih stok.</td></tr>`;
+                return;
+            }
+
+            tbody.innerHTML = diffMasterItems.map(i => {
+                const diff = i.scanned - i.stock;
+                let diffBadge = '';
+                let statusBadge = '';
+
+                if (diff < 0) {
+                    diffBadge = `<span class="text-rose-600 font-bold">${diff} pcs</span>`;
+                    statusBadge = `<span class="px-2.5 py-1 bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300 rounded text-xs font-semibold">Selisih Kurang (${diff})</span>`;
+                } else {
+                    diffBadge = `<span class="text-amber-600 font-bold">+${diff} pcs</span>`;
+                    statusBadge = `<span class="px-2.5 py-1 bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300 rounded text-xs font-semibold">Selisih Plus (+${diff})</span>`;
+                }
+
+                return `
+                    <tr class="hover:bg-slate-50 dark:hover:bg-slate-800/50">
+                        <td class="p-3 font-semibold text-slate-800 dark:text-slate-200">${i.brand || '-'}</td>
+                        <td class="p-3 font-semibold text-slate-800 dark:text-slate-200">${i.artikel}</td>
+                        <td class="p-3 text-slate-600 dark:text-slate-300">${i.nama}</td>
+                        <td class="p-3 text-center font-bold text-slate-700 dark:text-slate-300">${i.stock}</td>
+                        <td class="p-3 text-center font-bold text-brand-600 dark:text-brand-400">${i.scanned}</td>
+                        <td class="p-3 text-center">${diffBadge}</td>
+                        <td class="p-3 text-center">${statusBadge}</td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        function renderDiffItemsTable() {
+            const tbody = document.getElementById('diffItemsTableBody');
+            if (!tbody) return;
+
+            const searchQuery = (document.getElementById('diffSearchInput')?.value || '').toLowerCase();
+
+            const items = Object.values(diffItemsList).filter(d => 
+                d.count > 0 && 
+                d.artikel.toLowerCase().includes(searchQuery)
+            );
+
+            if (items.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="5" class="p-4 text-center text-slate-400">Tidak ada artikel non-master.</td></tr>`;
+                return;
+            }
+
+            tbody.innerHTML = items.map(d => `
+                <tr class="hover:bg-slate-50 dark:hover:bg-slate-800/50">
+                    <td class="p-3 font-bold text-purple-600 dark:text-purple-400">${d.artikel}</td>
+                    <td class="p-3 text-slate-500">Tidak ada di Master SPR</td>
+                    <td class="p-3 text-center font-bold text-slate-800 dark:text-white">${d.count} pcs</td>
+                    <td class="p-3 text-center">
+                        <span class="px-2.5 py-1 bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-300 rounded text-xs font-semibold">+${d.count} Tidak Terdaftar</span>
+                    </td>
+                    <td class="p-3 text-right space-x-1">
+                        <button onclick="adjustDiffCount('${d.artikel}', 1)" class="px-2 py-1 bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 text-xs font-bold rounded">+1</button>
+                        <button onclick="adjustDiffCount('${d.artikel}', -1)" class="px-2 py-1 bg-rose-100 hover:bg-rose-200 dark:bg-rose-900/30 text-rose-600 text-xs font-bold rounded">-1</button>
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        function adjustDiffCount(code, delta) {
+            if (diffItemsList[code]) {
+                diffItemsList[code].count += delta;
+                if (diffItemsList[code].count <= 0) delete diffItemsList[code];
+                renderAllData();
+            }
+        }
+
+        function updateLastScanCard(artikel, nama, stock, scanned, brand = '-') {
+            document.getElementById('lastBrand').innerText = brand || '-';
+            document.getElementById('lastArtikel').innerText = artikel;
+            document.getElementById('lastNama').innerText = nama;
+            document.getElementById('lastStock').innerText = stock;
+            document.getElementById('lastScannedQty').innerText = scanned;
+        }
+
+        function showScanFeedback(msg, type) {
+            const box = document.getElementById('scanFeedback');
+            if (!box) return;
+            box.classList.remove('hidden', 'bg-emerald-100', 'text-emerald-800', 'bg-amber-100', 'text-amber-800');
+
+            if (type === 'success') box.classList.add('bg-emerald-100', 'text-emerald-800');
+            else box.classList.add('bg-amber-100', 'text-amber-800');
+
+            box.innerText = msg;
+        }
+
+        // REALTIME SYNC HANDLERS
+        function openSyncModal() {
+            const modal = document.getElementById('syncModal');
+            const input = document.getElementById('webAppUrlInput');
+            if (input) input.value = syncServerUrl;
+            if (modal) modal.classList.remove('hidden');
+        }
+
+        function closeSyncModal() {
+            const modal = document.getElementById('syncModal');
+            if (modal) modal.classList.add('hidden');
+        }
+
+        function saveSyncSettings() {
+            const input = document.getElementById('webAppUrlInput');
+            if (input && input.value.trim()) {
+                syncServerUrl = input.value.trim();
+                localStorage.setItem('opname_sync_url', syncServerUrl);
+                updateSyncUI(true, 'Terhubung Server');
+                startRealtimePolling();
+                closeSyncModal();
+            } else {
+                alert('Silakan masukkan URL Web App yang valid!');
+            }
+        }
+
+        function disableSync() {
+            syncServerUrl = '';
+            localStorage.removeItem('opname_sync_url');
+            if (syncInterval) clearInterval(syncInterval);
+            updateSyncUI(false, 'Offline / Standalone');
+            closeSyncModal();
+        }
+
+        function updateSyncUI(isConnected, label) {
+            const badge = document.getElementById('syncStatusBadge');
+            const text = document.getElementById('syncStatusText');
+            if (badge) {
+                badge.className = isConnected 
+                    ? 'w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse' 
+                    : 'w-2.5 h-2.5 rounded-full bg-slate-400';
+            }
+            if (text) text.innerText = label;
+        }
+
+        function startRealtimePolling() {
+            if (syncInterval) clearInterval(syncInterval);
+            syncInterval = setInterval(() => {
+                if (syncServerUrl) {
+                    fetch(syncServerUrl + '?action=get_stats')
+                        .then(res => res.json())
+                        .then(data => {
+                            if (data.success) {
+                                updateSyncUI(true, 'Live Realtime');
+                            }
+                        })
+                        .catch(() => updateSyncUI(false, 'Gagal Sync'));
+                }
+            }, 5000);
+        }
+
+        function sendScanToServer(barcode) {
+            if (!syncServerUrl) return;
+            fetch(syncServerUrl, {
+                method: 'POST',
+                mode: 'no-cors',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: new URLSearchParams({ barcode: barcode })
+            }).catch(err => console.log('Sync error:', err));
+        }
+
+        // EXPORT TO EXCEL FUNCTION
+        function exportToExcel(type) {
+            if (typeof XLSX === 'undefined') {
+                alert('Library SheetJS belum dimuat!');
+                return;
+            }
+
+            const wb = XLSX.utils.book_new();
+            const dateStr = new Date().toLocaleDateString('id-ID').replace(/\//g, '-');
+
+            // 1. DATA NON-MASTER (DIFF ITEM)
+            if (type === 'all' || type === 'diff-only' || type === 'non-master') {
+                const nonMasterData = [
+                    ["Artikel Barcode", "Keterangan", "Scan Physical Qty", "Status"]
+                ];
+                Object.values(diffItemsList).forEach(d => {
+                    if (d.count > 0) {
+                        nonMasterData.push([d.artikel, "Tidak Ada di Master SPR", d.count, "Non-Master Item"]);
+                    }
+                });
+                const wsNonMaster = XLSX.utils.aoa_to_sheet(nonMasterData);
+                XLSX.utils.book_append_sheet(wb, wsNonMaster, "Non-Master Items");
+            }
+
+            // 2. DATA SELISIH MASTER SPR
+            if (type === 'all' || type === 'diff-only' || type === 'master-diff') {
+                const masterDiffData = [
+                    ["Brand", "Artikel", "Nama Barang", "Kategori", "Stock SPR", "Scan Physical", "Selisih Qty", "Status Selisih"]
+                ];
+                masterInventory.filter(i => i.stock > 0 && i.scanned !== i.stock).forEach(i => {
+                    const diff = i.scanned - i.stock;
+                    const status = diff < 0 ? `Selisih Kurang (${diff})` : `Selisih Plus (+${diff})`;
+                    masterDiffData.push([i.brand || '-', i.artikel, i.nama, i.kategori || 'Accessories', i.stock, i.scanned, diff, status]);
+                });
+                const wsMasterDiff = XLSX.utils.aoa_to_sheet(masterDiffData);
+                XLSX.utils.book_append_sheet(wb, wsMasterDiff, "Selisih Master SPR");
+            }
+
+            // 3. DATA MASTER INVENTORY LENGKAP
+            if (type === 'all' || type === 'full-inventory') {
+                const fullData = [
+                    ["Brand", "Artikel", "Nama Barang", "Kategori", "Stock SPR", "Scan Physical", "Selisih Qty", "Status Match"]
+                ];
+                masterInventory.filter(i => i.stock > 0).forEach(i => {
+                    const diff = i.scanned - i.stock;
+                    let status = "Sesuai Match";
+                    if (diff < 0) status = `Selisih Kurang (${diff})`;
+                    else if (diff > 0) status = `Selisih Plus (+${diff})`;
+
+                    fullData.push([i.brand || '-', i.artikel, i.nama, i.kategori || 'Accessories', i.stock, i.scanned, diff, status]);
+                });
+                const wsFull = XLSX.utils.aoa_to_sheet(fullData);
+                XLSX.utils.book_append_sheet(wb, wsFull, "Master Inventory");
+            }
+
+            let fileName = `Stock_Opname_${type.toUpperCase()}_${dateStr}.xlsx`;
+            XLSX.writeFile(wb, fileName);
+        }
+    </script>
+</body>
+</html>
